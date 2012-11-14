@@ -2,62 +2,106 @@ package main
 
 import ()
 
+type Swaggo struct {
+	ApiVersion     string
+	SwaggerVersion string
+	BasePath       string
+	ResourcePath   string
+
+	Apis   []*SGApi
+	Models []*SGModel
+}
+
+func NewSwaggo(resourcePath string, apiVersion string) *Swaggo {
+	return &Swaggo{
+		ApiVersion:     apiVersion,
+		SwaggerVersion: "1.1",
+		BasePath:       "http://localhost:9000/api", // FIXME calculate from http muxer
+		ResourcePath:   resourcePath,
+		Apis:           make([]*SGApi, 0),
+		Models:         make([]*SGModel, 0),
+	}
+}
+
+func (sg *Swaggo) Api(description string) (*SGApi, error) {
+	api := &SGApi{
+		Description: description,
+		Operations:  make([]*SGOp, 4),
+	}
+
+	sg.Apis = append(sg.Apis, api)
+
+	return api, nil
+}
+
+type SGModel struct {
+}
+
 type SGApi struct {
-	handlers []*SGOp
+	Description string
+	Operations  []*SGOp
 }
 
 func (api *SGApi) Get(path string) *SGOp {
-	return &SGOp{api: api, method: "GET"}
+	return api.newOp("GET", path)
 }
 func (api *SGApi) Post(path string) *SGOp {
-	return &SGOp{api: api, method: "POST"}
+	return api.newOp("POST", path)
 }
 func (api *SGApi) Put(path string) *SGOp {
-	return &SGOp{api: api, method: "PUT"}
+	return api.newOp("PUT", path)
 }
 func (api *SGApi) Delete(path string) *SGOp {
-	return &SGOp{api: api, method: "DELETE"}
+	return api.newOp("DELETE", path)
+}
+func (api *SGApi) newOp(method string, path string) *SGOp {
+	return &SGOp{
+    api: api,
+    method: method,
+    params: make(map[string]string),
+    errorResponses: make([]*SGErrorResp, 0),
+  }
 }
 
 type SGHandler interface{}
 
 type SGOp struct {
-	api         *SGApi
-	method      string
-	handler     SGHandler
-	description string
-	params      map[string]string
-	returns     string
-	accepts     string
+	api            *SGApi
+	method         string
+	handler        SGHandler
+	summary        string
+	notes          string
+	params         map[string]string
+	returns        string
+	errorResponses []*SGErrorResp
 }
 
-func (op *SGOp) DoOn(obj interface{}, funcName string) error {
+type SGErrorResp struct{}
+
+func (op *SGOp) MapOn(obj interface{}, funcName string) error {
 	op.handler = func() {
 		// call funcName on obj with passed in args
 	}
 	return nil
 }
-func (op *SGOp) Do(handler SGHandler) error {
+func (op *SGOp) Map(handler SGHandler) error {
 	op.handler = handler
 	return nil
 }
-func (op *SGOp) Description(description string) *SGOp {
-	op.description = description
+func (op *SGOp) Summary(summary string) *SGOp {
+	op.summary = summary
+	return op
+}
+func (op *SGOp) Notes(notes string) *SGOp {
+	op.notes = notes
 	return op
 }
 func (op *SGOp) Param(name string, description string) *SGOp {
-	if op.params == nil {
-		op.params = make(map[string]string)
-	}
 	op.params[name] = description
 	return op
 }
-func (op *SGOp) Returns(typ string) *SGOp {
+func (op *SGOp) ResponseClass(typ string) *SGOp {
 	op.returns = typ
-	return op
-}
-func (op *SGOp) Accepts(typ string) *SGOp {
-	op.accepts = typ
 	return op
 }
 
@@ -75,23 +119,26 @@ func (pr *PersonResources) GetMe(abc string, def string, resp interface{}) error
 	return nil
 }
 
-func (pr *PersonResources) GetSwaggoApi() (*SGApi, error) {
+func (pr *PersonResources) SwaggoApi(sg *Swaggo) (*SGApi, error) {
 
-	api := new(SGApi)
+	api, err := sg.Api("Person Resources")
+
+	if err != nil {
+		return nil, err
+	}
 
 	api.Get("/person/me").
-		Description("A function that does stuff").
+		Summary("A function that does stuff").
 		Param("abc", "The value of awesomeness").
 		Param("def", "Slightly more awesomeness").
-		Returns("Person").
-		DoOn(pr, "GetMe")
+		ResponseClass("Person").
+		MapOn(pr, "GetMe")
 
 	api.Post("/person/me").
-		Description("Create a person").
+		Summary("Create a person").
 		Param("param1", "its description").
-		Accepts("Person").
-		Returns("Person").
-		Do(func(param1 string, resp interface{}) {
+		ResponseClass("Person").
+		Map(func(param1 string, resp interface{}) {
 
 	})
 
@@ -99,9 +146,10 @@ func (pr *PersonResources) GetSwaggoApi() (*SGApi, error) {
 }
 
 func main() {
+	sg := NewSwaggo("/{format}", "0.1")
 
 	pr := &PersonResources{}
 
-	pr.GetSwaggoApi()
+	pr.SwaggoApi(sg)
 
 }
