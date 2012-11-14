@@ -2,60 +2,63 @@ package main
 
 import ()
 
-type SwagGo struct {
-	handlers []*SwagGoBody
+type SGApi struct {
+	handlers []*SGOp
 }
 
-func (sg *SwagGo) Get(path string) *SwagGoBody {
-	return &SwagGoBody{sg: sg, method: "GET"}
+func (api *SGApi) Get(path string) *SGOp {
+	return &SGOp{api: api, method: "GET"}
 }
-func (sg *SwagGo) Post(path string) *SwagGoBody {
-	return &SwagGoBody{sg: sg, method: "POST"}
+func (api *SGApi) Post(path string) *SGOp {
+	return &SGOp{api: api, method: "POST"}
 }
-func (sg *SwagGo) Put(path string) *SwagGoBody {
-	return &SwagGoBody{sg: sg, method: "PUT"}
+func (api *SGApi) Put(path string) *SGOp {
+	return &SGOp{api: api, method: "PUT"}
 }
-func (sg *SwagGo) Delete(path string) *SwagGoBody {
-	return &SwagGoBody{sg: sg, method: "DELETE"}
+func (api *SGApi) Delete(path string) *SGOp {
+	return &SGOp{api: api, method: "DELETE"}
 }
 
-type SwagGoHandler interface{}
+type SGHandler interface{}
 
-type SwagGoBody struct {
+type SGOp struct {
+	api         *SGApi
 	method      string
-	sg          *SwagGo
-	handler     SwagGoHandler
+	handler     SGHandler
 	description string
 	params      map[string]string
 	returns     string
 	accepts     string
 }
 
-func (sgb *SwagGoBody) DoOn(obj interface{}, funcName string) error {
-	sgb.handler = func() {
+func (op *SGOp) DoOn(obj interface{}, funcName string) error {
+	op.handler = func() {
 		// call funcName on obj with passed in args
 	}
 	return nil
 }
-func (sgb *SwagGoBody) Do(handler SwagGoHandler) error {
-	sgb.handler = handler
+func (op *SGOp) Do(handler SGHandler) error {
+	op.handler = handler
 	return nil
 }
-func (sgb *SwagGoBody) Description(description string) *SwagGoBody {
-	sgb.description = description
-	return sgb
+func (op *SGOp) Description(description string) *SGOp {
+	op.description = description
+	return op
 }
-func (sgb *SwagGoBody) Param(name string, description string) *SwagGoBody {
-	sgb.params[name] = description
-	return sgb
+func (op *SGOp) Param(name string, description string) *SGOp {
+	if op.params == nil {
+		op.params = make(map[string]string)
+	}
+	op.params[name] = description
+	return op
 }
-func (sgb *SwagGoBody) Returns(typ string) *SwagGoBody {
-	sgb.returns = typ
-	return sgb
+func (op *SGOp) Returns(typ string) *SGOp {
+	op.returns = typ
+	return op
 }
-func (sgb *SwagGoBody) Accepts(typ string) *SwagGoBody {
-	sgb.accepts = typ
-	return sgb
+func (op *SGOp) Accepts(typ string) *SGOp {
+	op.accepts = typ
+	return op
 }
 
 type Person struct {
@@ -63,8 +66,8 @@ type Person struct {
 
 type PersonResources struct{}
 
-type SwagGoResources interface {
-	SwagGoResources(sg *SwagGo) error
+type SGApiResource interface {
+	GetSwaggoApi() (*SGApi, error)
 }
 
 func (pr *PersonResources) GetMe(abc string, def string, resp interface{}) error {
@@ -72,16 +75,18 @@ func (pr *PersonResources) GetMe(abc string, def string, resp interface{}) error
 	return nil
 }
 
-func (pr *PersonResources) SwagGoResources(sg *SwagGo) error {
+func (pr *PersonResources) GetSwaggoApi() (*SGApi, error) {
 
-	sg.Get("/person/me").
+	api := new(SGApi)
+
+	api.Get("/person/me").
 		Description("A function that does stuff").
 		Param("abc", "The value of awesomeness").
 		Param("def", "Slightly more awesomeness").
 		Returns("Person").
 		DoOn(pr, "GetMe")
 
-	sg.Post("/person/me").
+	api.Post("/person/me").
 		Description("Create a person").
 		Param("param1", "its description").
 		Accepts("Person").
@@ -90,14 +95,13 @@ func (pr *PersonResources) SwagGoResources(sg *SwagGo) error {
 
 	})
 
-	return nil
+	return api, nil
 }
 
 func main() {
 
-	sg := new(SwagGo)
-
 	pr := &PersonResources{}
 
-	pr.SwagGoResources(sg)
+	pr.GetSwaggoApi()
+
 }
